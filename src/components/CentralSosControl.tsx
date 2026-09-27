@@ -488,7 +488,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
                 {studentPhone}
               </span>
             ) : (
-              <span className="text-[#f59e0b]">(No phone added)</span>
+              <span className="text-[#e67e22] font-semibold">(No phone registered - please add your mobile above)</span>
             )}
           </div>
         </div>

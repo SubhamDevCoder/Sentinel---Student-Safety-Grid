@@ -1,3 +1,42 @@
+export type SosAlertStatus = 'ACTIVE' | 'ACKNOWLEDGED' | 'DISPATCHED' | 'RESOLVED' | 'CANCELLED';
+
+export interface SosAlertLocation {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+}
+
+export interface SosDeviceInfo {
+  battery_level: number;
+  is_charging?: boolean;
+}
+
+export interface SosAlertDocument {
+  sos_id: string;
+  user_id: string;
+  user_name: string;
+  phone_number: string;
+  timestamp: any;
+  status: SosAlertStatus;
+  location: SosAlertLocation;
+  device_info: SosDeviceInfo;
+  issue?: string;
+  campus_location?: string;
+  last_updated?: any;
+  target_faculty_phones?: string[];
+  acknowledged_by?: string;
+  resolved_by?: string;
+}
+
+export interface SosLocationHistoryEntry {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  battery_level?: number;
+  is_charging?: boolean;
+  timestamp: any;
+}
+
 export interface EmergencyAlertPayload {
   studentName: string;
   location: string;

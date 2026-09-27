@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "sos_alert": {
+      "title": "SOS Alert",
+      "description": "Real-time emergency SOS alert broadcast by students with live telemetry",
+      "type": "object",
+      "properties": {
+        "sos_id": {
+          "type": "string",
+          "description": "Unique identifier for the SOS alert",
+          "maxLength": 64
+        },
+        "user_id": {
+          "type": "string",
+          "description": "Identifier of the student who triggered the alert",
+          "maxLength": 64
+        },
+        "user_name": {
+          "type": "string",
+          "description": "Full name or roll number of the student",
+          "maxLength": 100
+        },
+        "phone_number": {
+          "type": "string",
+          "description": "Student emergency callback phone number",
+          "maxLength": 25
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ACTIVE", "ACKNOWLEDGED", "DISPATCHED", "RESOLVED", "CANCELLED"],
+          "description": "Current lifecycle status of the SOS alert"
+        },
+        "location": {
+          "type": "object",
+          "description": "Latest GPS coordinates and accuracy"
+        },
+        "device_info": {
+          "type": "object",
+          "properties": {
+            "battery_level": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Device battery percentage (0-100) captured and updated in real-time"
+            },
+            "is_charging": {
+              "type": "boolean",
+              "description": "Whether the device is currently plugged into a power source"
+            }
+          },
+          "required": ["battery_level"],
+          "description": "Real-time device battery percentage and telemetry"
+        },
+        "issue": {
+          "type": "string",
+          "description": "Emergency issue description or category",
+          "maxLength": 300
+        },
+        "campus_location": {
+          "type": "string",
+          "description": "Campus landmark or fallback description",
+          "maxLength": 300
+        },
+        "last_updated": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of most recent location or status update"
+        }
+      },
+      "required": ["sos_id", "user_id", "user_name", "status", "location"]
+    },
+    "location_history_entry": {
+      "title": "Location History Entry",
+      "description": "Continuous GPS location update streamed while SOS is active",
+      "type": "object",
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "description": "GPS latitude coordinate"
+        },
+        "longitude": {
+          "type": "number",
+          "description": "GPS longitude coordinate"
+        },
+        "accuracy": {
+          "type": "number",
+          "description": "Accuracy radius in meters"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when this location was recorded"
+        }
+      },
+      "required": ["latitude", "longitude", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/sos_alerts/{sos_id}": {
+      "schema": "sos_alert",
+      "description": "Collection of real-time emergency SOS alerts"
+    },
+    "/sos_alerts/{sos_id}/location_history/{historyId}": {
+      "schema": "location_history_entry",
+      "description": "Streaming sub-collection of breadcrumb location updates for an active SOS alert"
+    }
+  }
+}

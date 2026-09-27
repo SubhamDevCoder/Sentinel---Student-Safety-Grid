@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'subhamsahoo.editor@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidSosAlert(data) {
+      return data.keys().hasAll(['sos_id', 'user_id', 'user_name', 'status', 'location']) &&
+        data.sos_id is string && data.sos_id.size() <= 64 &&
+        data.user_id is string && data.user_id.size() <= 64 &&
+        data.user_name is string && data.user_name.size() <= 100 &&
+        data.status in ['ACTIVE', 'ACKNOWLEDGED', 'DISPATCHED', 'RESOLVED', 'CANCELLED'] &&
+        data.location is map &&
+        (!('phone_number' in data) || (data.phone_number is string && data.phone_number.size() <= 25)) &&
+        (!('issue' in data) || (data.issue is string && data.issue.size() <= 300)) &&
+        (!('campus_location' in data) || (data.campus_location is string && data.campus_location.size() <= 300));
+    }
+
+    // Connection testing endpoint
+    match /test/{docId} {
+      allow get: if true;
+    }
+
+    // SOS Alerts collection
+    match /sos_alerts/{sos_id} {
+      // Allow reading individual SOS alerts (student listening to status, admin reviewing)
+      allow get: if isValidId(sos_id);
+
+      // Allow listing alerts (for command center dashboards)
+      allow list: if true;
+
+      // Allow creating an SOS alert in emergencies
+      allow create: if isValidId(sos_id) &&
+        isValidSosAlert(incoming()) &&
+        incoming().sos_id == sos_id &&
+        incoming().status == 'ACTIVE';
+
+      // Allow updates:
+      // 1. Live location streaming update
+      // 2. Cancellation by user
+      // 3. Status progression by security (ACKNOWLEDGED / DISPATCHED / RESOLVED)
+      allow update: if isValidId(sos_id) &&
+        incoming().sos_id == existing().sos_id &&
+        incoming().user_id == existing().user_id &&
+        (
+          // Action 1: Continuous Live Telemetry Update (Location & Device Battery info)
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['location', 'last_updated', 'device_info']) &&
+            (!('location' in incoming()) || incoming().location is map) &&
+            (!('device_info' in incoming()) || (incoming().device_info is map && incoming().device_info.battery_level is number))
+          ) ||
+          // Action 2: Cancellation Action
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_updated']) &&
+            incoming().status == 'CANCELLED' &&
+            existing().status != 'CANCELLED'
+          ) ||
+          // Action 3: Status Progression (Acknowledge, Dispatch, Resolve by campus responders)
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_updated', 'acknowledged_by', 'resolved_by']) &&
+            incoming().status in ['ACKNOWLEDGED', 'DISPATCHED', 'RESOLVED']
+          ) ||
+          // Action 4: Admin full update override
+          isAdmin()
+        );
+
+      // Disallow client-side deletion of emergency records
+      allow delete: if isAdmin();
+
+      // Continuous breadcrumb location history
+      match /location_history/{historyId} {
+        allow get, list: if isValidId(sos_id);
+        allow create: if isValidId(sos_id) &&
+          isValidId(historyId) &&
+          incoming().keys().hasAll(['latitude', 'longitude', 'timestamp']) &&
+          incoming().latitude is number &&
+          incoming().longitude is number;
+        allow update, delete: if isAdmin();
+      }
+    }
+  }
+}

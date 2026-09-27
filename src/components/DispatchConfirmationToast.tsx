@@ -65,7 +65,7 @@ export const DispatchConfirmationToast: React.FC<DispatchConfirmationToastProps>
 
               <p className="text-[11px] font-mono text-[#4a5568] mt-1">
                 {success
-                  ? `Firebase RTDB Ack Ref: ${firebaseKey || 'DISPATCHED'}`
+                  ? `Firebase Firestore SOS Ref: ${firebaseKey || 'ACTIVE'}`
                   : `Network alert notice: ${error || 'Logged to device store'}`}
               </p>
 

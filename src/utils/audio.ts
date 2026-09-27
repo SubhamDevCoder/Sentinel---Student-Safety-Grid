@@ -199,6 +199,124 @@ class SoundManager {
       // ignore
     }
   }
+
+  /**
+   * Attention chime when Admin updates status to "Help is on the way"
+   */
+  public playHelpOnTheWayAlert(): void {
+    try {
+      const ctx = this.getContext();
+      const now = ctx.currentTime;
+      [0, 0.15, 0.3].forEach((t, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880 + i * 110, now + t);
+        gain.gain.setValueAtTime(0.0001, now + t);
+        gain.gain.exponentialRampToValueAtTime(0.25, now + t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + t);
+        osc.stop(now + t + 0.13);
+      });
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100, 50, 200]);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Cancellation tone
+   */
+  public playCancelTone(): void {
+    try {
+      const ctx = this.getContext();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(220, now + 0.25);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.26);
+    } catch {
+      // ignore
+    }
+  }
+
+  private broadcastAlarmInterval: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Continuous urgent emergency siren when an incoming SOS broadcast is detected
+   * Sounds on all devices that have this app open
+   */
+  public startEmergencyBroadcastSiren(): void {
+    if (this.broadcastAlarmInterval) return;
+    this.playBroadcastAlarmBurst();
+    this.broadcastAlarmInterval = setInterval(() => {
+      this.playBroadcastAlarmBurst();
+    }, 1500);
+  }
+
+  public stopEmergencyBroadcastSiren(): void {
+    if (this.broadcastAlarmInterval) {
+      clearInterval(this.broadcastAlarmInterval);
+      this.broadcastAlarmInterval = null;
+    }
+  }
+
+  public playBroadcastAlarmBurst(): void {
+    try {
+      const ctx = this.getContext();
+      const now = ctx.currentTime;
+
+      // Two-tone piercing klaxon alert (940Hz and 740Hz)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+
+      // 1st beep
+      osc.frequency.setValueAtTime(940, now);
+      osc.frequency.setValueAtTime(740, now + 0.22);
+      // 2nd beep
+      osc.frequency.setValueAtTime(940, now + 0.44);
+      osc.frequency.setValueAtTime(740, now + 0.66);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.3, now + 0.03);
+      gain.gain.setValueAtTime(0.3, now + 0.82);
+      gain.gain.linearRampToValueAtTime(0.0001, now + 0.95);
+
+      // Lowpass filter to ensure tone isn't uncomfortably screechy
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2600, now);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 1.0);
+
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate([300, 100, 300, 100, 500]);
+      }
+    } catch (e) {
+      console.warn('Emergency broadcast audio synthesis error:', e);
+    }
+  }
+
+  public playEmergencyNotificationSound(): void {
+    this.playBroadcastAlarmBurst();
+  }
 }
 
 export const soundManager = new SoundManager();

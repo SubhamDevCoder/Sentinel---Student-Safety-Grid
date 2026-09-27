@@ -220,7 +220,7 @@ export const ManualIncidentCard: React.FC<ManualIncidentCardProps> = ({
               type="tel"
               value={contactPhone}
               onChange={(e) => setContactPhone(e.target.value)}
-              placeholder="e.g. 9876543210 (Enables immediate security callback)"
+              placeholder="Enter your personal 10-digit mobile number"
               className="w-full neu-recessed px-3.5 py-3 rounded-xl text-xs font-mono text-[#2d3436] placeholder-[#8c96a8] outline-none border border-transparent focus:border-[#4a5568]/40 transition-colors"
             />
           </div>
