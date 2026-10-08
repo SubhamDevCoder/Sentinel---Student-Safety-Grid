@@ -7,6 +7,7 @@ import { HelplineDirectory } from './components/HelplineDirectory.tsx';
 import { DispatchConfirmationToast } from './components/DispatchConfirmationToast.tsx';
 import { DispatchHistoryDrawer } from './components/DispatchHistoryDrawer.tsx';
 import { ActiveSosLiveBanner } from './components/ActiveSosLiveBanner.tsx';
+import { CommandCenterModal } from './components/CommandCenterModal.tsx';
 import { useGPSLocation } from './hooks/useGPSLocation.ts';
 import { transmitEmergencyAlert, getLocalAlertHistory } from './services/dispatch.ts';
 import { testConnection } from './services/firebase.ts';
@@ -15,12 +16,8 @@ import {
   LiveLocationStreamer,
   subscribeToSosStatus,
   cancelSosAlert,
-  subscribeToCampusWideActiveSos,
-  acknowledgeCampusSosAlert,
   getOrCreateUserId,
 } from './services/sosAlertService.ts';
-import { triggerCampusWideSosNotification } from './services/campusNotificationService.ts';
-import { IncomingEmergencySosOverlay } from './components/IncomingEmergencySosOverlay.tsx';
 import {
   EmergencyAlertPayload,
   AlertDispatchResult,
@@ -88,40 +85,15 @@ export default function App() {
   const [latestDispatchResult, setLatestDispatchResult] = useState<AlertDispatchResult | null>(null);
   const [alertHistory, setAlertHistory] = useState<AlertDispatchResult[]>([]);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState<boolean>(false);
-  const [incomingCampusAlert, setIncomingCampusAlert] = useState<SosAlertDocument | null>(null);
-  const [isOverlayMinimized, setIsOverlayMinimized] = useState<boolean>(false);
+  const [isCommandCenterOpen, setIsCommandCenterOpen] = useState<boolean>(false);
 
-  const currentUserId = useRef<string>(getOrCreateUserId()).current;
   const locationStreamerRef = useRef<LiveLocationStreamer | null>(null);
   const statusUnsubscribeRef = useRef<(() => void) | null>(null);
-  const campusAlertsUnsubRef = useRef<(() => void) | null>(null);
 
   // Initialize and verify Firestore connection on app mount
   useEffect(() => {
     testConnection();
     setAlertHistory(getLocalAlertHistory());
-
-    // Universal Campus-Wide SOS Broadcast Listener:
-    // When ANYONE gives an SOS message, plays emergency sound and pushes notification to everyone who has this app
-    const unsubCampus = subscribeToCampusWideActiveSos(
-      currentUserId,
-      (newAlert) => {
-        // Only notify if not this device's own outgoing active session
-        if (newAlert.sos_id !== activeAlert?.sos_id) {
-          setIncomingCampusAlert(newAlert);
-          if (newAlert.status === 'ACTIVE') {
-            setIsOverlayMinimized(false);
-            triggerCampusWideSosNotification(newAlert);
-          }
-        }
-      },
-      () => {
-        setIncomingCampusAlert(null);
-        setIsOverlayMinimized(false);
-        soundManager.stopEmergencyBroadcastSiren();
-      }
-    );
-    campusAlertsUnsubRef.current = unsubCampus;
 
     // Clean up any remaining faculty keys or residual mock numbers
     try {
@@ -161,10 +133,6 @@ export default function App() {
     }
 
     return () => {
-      if (campusAlertsUnsubRef.current) {
-        campusAlertsUnsubRef.current();
-      }
-      soundManager.stopEmergencyBroadcastSiren();
       if (locationStreamerRef.current) {
         locationStreamerRef.current.stop();
       }
@@ -172,7 +140,7 @@ export default function App() {
         statusUnsubscribeRef.current();
       }
     };
-  }, [activeAlert?.sos_id, currentUserId]);
+  }, []);
 
   const handleUpdateStudentName = (name: string) => {
     const cleanName =
@@ -259,19 +227,12 @@ export default function App() {
         locationStreamerRef.current = streamer;
 
         // Feature 4: Real-time Status Listener
-        // Listens to document updates (e.g. ACKNOWLEDGED by campus responder)
+        // Listens to document updates (e.g. ACKNOWLEDGED by Command Center)
         const unsubscribe = subscribeToSosStatus(
           createdAlert.sos_id,
           (liveDoc) => {
             setActiveAlert((prev) => {
-              // Trigger loud reassuring alert when responder acknowledges
-              if (
-                (liveDoc.status === 'ACKNOWLEDGED' || liveDoc.status === 'DISPATCHED') &&
-                prev?.status !== liveDoc.status
-              ) {
-                soundManager.playHelpOnTheWayAlert();
-              } else if (liveDoc.status === 'CANCELLED' && prev?.status !== 'CANCELLED') {
-                soundManager.playCancelTone();
+              if (liveDoc.status === 'CANCELLED' && prev?.status !== 'CANCELLED') {
                 if (locationStreamerRef.current) {
                   locationStreamerRef.current.stop();
                   locationStreamerRef.current = null;
@@ -285,9 +246,6 @@ export default function App() {
           }
         );
         statusUnsubscribeRef.current = unsubscribe;
-
-        // Play authoritative success chime
-        soundManager.playSuccessChime();
 
         // Local history record
         const result: AlertDispatchResult = {
@@ -345,64 +303,8 @@ export default function App() {
     }
   }, []);
 
-  const handleAcknowledgeIncomingAlert = useCallback(
-    async (sosId: string, responderName: string) => {
-      try {
-        await acknowledgeCampusSosAlert(sosId, responderName);
-        setIncomingCampusAlert((prev) => (prev ? { ...prev, status: 'ACKNOWLEDGED' } : null));
-      } catch (e) {
-        console.error('Error acknowledging incoming alert:', e);
-      }
-    },
-    []
-  );
-
-  const handleDismissIncomingAlert = useCallback(() => {
-    soundManager.stopEmergencyBroadcastSiren();
-    setIsOverlayMinimized(true);
-  }, []);
-
   return (
     <main className="min-h-screen bg-[#e0e5ec] chassis-texture text-[#2d3436] p-3 sm:p-5 md:p-8 flex flex-col justify-between relative">
-      {/* Universal Campus-Wide Emergency SOS Notification Overlay */}
-      {incomingCampusAlert && !isOverlayMinimized && (
-        <IncomingEmergencySosOverlay
-          alert={incomingCampusAlert}
-          currentUserName={studentName}
-          onAcknowledge={handleAcknowledgeIncomingAlert}
-          onDismiss={handleDismissIncomingAlert}
-        />
-      )}
-
-      {/* Sticky High-Priority Banner when Dossier is Minimized */}
-      {incomingCampusAlert && isOverlayMinimized && (
-        <div className="w-full max-w-md md:max-w-xl mx-auto mb-3 bg-red-600 text-white rounded-xl p-3 flex items-center justify-between shadow-lg animate-pulse font-mono text-xs border border-red-400">
-          <div className="flex items-center gap-2 truncate pr-2">
-            <ShieldAlert className="w-4 h-4 text-amber-300 shrink-0" />
-            <div className="truncate">
-              <span className="font-bold uppercase block sm:inline">
-                {incomingCampusAlert.status === 'ACKNOWLEDGED'
-                  ? 'RESPONDING TO SOS:'
-                  : 'ACTIVE SOS DISTRESS:'}
-              </span>{' '}
-              <span className="truncate">
-                {incomingCampusAlert.user_name} — {incomingCampusAlert.issue}
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              soundManager.playClickTick();
-              setIsOverlayMinimized(false);
-            }}
-            className="px-3 py-1.5 bg-white text-red-600 rounded-lg font-bold text-xs shrink-0 hover:bg-red-50 cursor-pointer shadow"
-          >
-            VIEW PROBLEM & INFO
-          </button>
-        </div>
-      )}
-
       <div className="w-full max-w-md md:max-w-xl mx-auto">
         {/* Hardware Header Chassis */}
         <HeaderChassis
@@ -412,6 +314,7 @@ export default function App() {
           onUpdateStudentName={handleUpdateStudentName}
           onUpdateStudentPhone={handleUpdateStudentPhone}
           onTriggerGPSManualRefresh={fetchCoordinates}
+          onOpenCommandCenter={() => setIsCommandCenterOpen(true)}
         />
 
         {/* Mobile PWA Install Card */}
@@ -424,7 +327,7 @@ export default function App() {
           isCancelling={isCancelling}
         />
 
-        {/* Primary Central Hold SOS Control Station */}
+        {/* Primary Central 1-Click SOS Control Station */}
         <CentralSosControl
           gpsState={gpsState}
           studentName={studentName}
@@ -469,6 +372,19 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   soundManager.playClickTick();
+                  setIsCommandCenterOpen(true);
+                }}
+                className="px-2.5 py-1 rounded-md neu-button text-red-600 hover:bg-red-50 font-bold cursor-pointer flex items-center gap-1"
+                title="Open Security Command Center Console"
+              >
+                <ShieldAlert className="w-3 h-3 text-red-600" />
+                COMMAND CENTER
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  soundManager.playClickTick();
                   setIsHistoryDrawerOpen(true);
                 }}
                 className="px-2.5 py-1 rounded-md neu-button text-[#2d3436] hover:text-[#ff4757] font-semibold cursor-pointer flex items-center gap-1"
@@ -496,6 +412,13 @@ export default function App() {
         isOpen={isHistoryDrawerOpen}
         onClose={() => setIsHistoryDrawerOpen(false)}
         history={alertHistory}
+      />
+
+      {/* Security Command Center Console */}
+      <CommandCenterModal
+        isOpen={isCommandCenterOpen}
+        onClose={() => setIsCommandCenterOpen(false)}
+        responderName={studentName}
       />
     </main>
   );

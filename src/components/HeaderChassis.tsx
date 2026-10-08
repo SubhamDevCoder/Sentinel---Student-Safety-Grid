@@ -28,6 +28,7 @@ interface HeaderChassisProps {
   onUpdateStudentName: (name: string) => void;
   onUpdateStudentPhone: (phone: string) => void;
   onTriggerGPSManualRefresh: () => void;
+  onOpenCommandCenter?: () => void;
 }
 
 export const HeaderChassis: React.FC<HeaderChassisProps> = ({
@@ -37,6 +38,7 @@ export const HeaderChassis: React.FC<HeaderChassisProps> = ({
   onUpdateStudentName,
   onUpdateStudentPhone,
   onTriggerGPSManualRefresh,
+  onOpenCommandCenter,
 }) => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [tempName, setTempName] = useState(studentName);
@@ -259,6 +261,23 @@ export const HeaderChassis: React.FC<HeaderChassisProps> = ({
             {notificationPerm === 'granted' ? 'ALERTS ON' : 'ENABLE ALERTS'}
           </span>
         </button>
+
+        {/* Security Command Center Console Trigger */}
+        {onOpenCommandCenter && (
+          <button
+            id="btn-open-command-center"
+            type="button"
+            onClick={() => {
+              soundManager.playClickTick();
+              onOpenCommandCenter();
+            }}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg neu-button cursor-pointer text-xs font-mono text-red-600 hover:text-red-700 font-bold"
+            title="Open Security Command Center Console"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-red-600" />
+            <span className="text-[10px] uppercase font-bold">COMMAND</span>
+          </button>
+        )}
 
         {/* Compact PWA Quick Install */}
         <div className="flex items-center">

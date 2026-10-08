@@ -1,7 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ScrewHead } from './ScrewHead.tsx';
-import { GCEK_CAMPUS_LOCATIONS, QUICK_EMERGENCY_ISSUES } from '../data/locations.ts';
-import { soundManager } from '../utils/audio.ts';
+import { GCEK_CAMPUS_LOCATIONS } from '../data/locations.ts';
 import { EmergencyAlertPayload, GPSLocationState } from '../types.ts';
 import {
   AlertTriangle,
@@ -9,12 +8,11 @@ import {
   Flame,
   Activity,
   UserX,
-  Volume2,
-  VolumeX,
   Radio,
   CheckCircle2,
   Phone,
   User,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface CentralSosControlProps {
@@ -38,67 +36,16 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
   const [customIssueText, setCustomIssueText] = useState<string>('');
   const [fallbackLocation, setFallbackLocation] = useState<string>(GCEK_CAMPUS_LOCATIONS[0]);
   const [useManualLocationOverride, setUseManualLocationOverride] = useState<boolean>(false);
+  const [justDispatched, setJustDispatched] = useState<boolean>(false);
 
-  // Hold progress state (0 to 100)
-  const [holdProgress, setHoldProgress] = useState<number>(0);
-  const [isHolding, setIsHolding] = useState<boolean>(false);
-  const [cancelledMessage, setCancelledMessage] = useState<string | null>(null);
-  const [isSoundMuted, setIsSoundMuted] = useState<boolean>(false);
+  /**
+   * One-Click Instant Emergency SOS Trigger:
+   * Dispatches immediately on a single tap with zero delay and completely silent.
+   */
+  const handleSingleClickSos = useCallback(async () => {
+    if (isDispatching) return;
 
-  const holdStartTimeRef = useRef<number | null>(null);
-  const animFrameRef = useRef<number | null>(null);
-  const stopSirenFnRef = useRef<(() => void) | null>(null);
-  const hasTriggeredRef = useRef<boolean>(false);
-
-  const HOLD_DURATION_MS = 3000;
-
-  // Clean up siren if unmounted
-  useEffect(() => {
-    return () => {
-      if (stopSirenFnRef.current) {
-        stopSirenFnRef.current();
-      }
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
-      }
-    };
-  }, []);
-
-  const handleCancelHold = useCallback(() => {
-    if (!isHolding && holdProgress === 0) return;
-
-    if (stopSirenFnRef.current) {
-      stopSirenFnRef.current();
-      stopSirenFnRef.current = null;
-    }
-
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-
-    if (isHolding && !hasTriggeredRef.current) {
-      setCancelledMessage('ABORTED: RELEASED BEFORE 3.0s');
-      setTimeout(() => setCancelledMessage(null), 2500);
-    }
-
-    setIsHolding(false);
-    setHoldProgress(0);
-    holdStartTimeRef.current = null;
-  }, [isHolding, holdProgress]);
-
-  const handleHoldComplete = useCallback(async () => {
-    hasTriggeredRef.current = true;
-    setIsHolding(false);
-    setHoldProgress(100);
-
-    if (stopSirenFnRef.current) {
-      stopSirenFnRef.current();
-      stopSirenFnRef.current = null;
-    }
-
-    // AUTOMATIC GPS TRANSMISSION:
-    // Trigger HTML5 Geolocation with enableHighAccuracy: true
+    // Automatic GPS capture with high accuracy
     let liveLat: number | null = gpsState.lat;
     let liveLng: number | null = gpsState.lng;
     let liveAccuracy: number | null = gpsState.accuracy;
@@ -139,19 +86,20 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
       timestamp: Date.now(),
       status: 'PENDING',
       accuracyMeters: liveAccuracy,
-      dispatchType: 'SOS_HOLD',
+      dispatchType: 'ONE_CLICK_SOS',
     };
 
     await onDispatchAlert(payload);
 
-    // Reset hold progress after brief confirmation display
+    setJustDispatched(true);
     setTimeout(() => {
-      setHoldProgress(0);
-      hasTriggeredRef.current = false;
-    }, 1500);
+      setJustDispatched(false);
+    }, 3000);
   }, [
+    isDispatching,
     gpsState,
     studentName,
+    studentPhone,
     useManualLocationOverride,
     fallbackLocation,
     customIssueText,
@@ -160,55 +108,12 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
     onDispatchAlert,
   ]);
 
-  const handleStartHold = useCallback(
-    (e: React.SyntheticEvent) => {
-      e.preventDefault();
-      if (isDispatching || hasTriggeredRef.current) return;
-
-      setCancelledMessage(null);
-      setIsHolding(true);
-      hasTriggeredRef.current = false;
-      holdStartTimeRef.current = performance.now();
-
-      // Start Ascending Siren via Web Audio API (if not muted)
-      if (!isSoundMuted) {
-        stopSirenFnRef.current = soundManager.startAscendingSiren(3.0);
-      } else {
-        soundManager.playClickTick();
-      }
-
-      const tick = (now: number) => {
-        if (!holdStartTimeRef.current) return;
-        const elapsed = now - holdStartTimeRef.current;
-        const progress = Math.min(100, (elapsed / HOLD_DURATION_MS) * 100);
-        setHoldProgress(progress);
-
-        if (elapsed >= HOLD_DURATION_MS) {
-          handleHoldComplete();
-        } else {
-          animFrameRef.current = requestAnimationFrame(tick);
-        }
-      };
-
-      animFrameRef.current = requestAnimationFrame(tick);
-    },
-    [isDispatching, isSoundMuted, handleHoldComplete]
-  );
-
-  // SVG circular dimensions
-  const svgSize = 220;
-  const strokeWidth = 10;
-  const radius = (svgSize - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (holdProgress / 100) * circumference;
-  const remainingSeconds = Math.max(0, (3.0 - (holdProgress / 100) * 3.0)).toFixed(1);
-
   return (
     <div
       id="central-sos-station"
       className="relative neu-card rounded-2xl p-6 mb-6 border border-white/40"
     >
-      {/* 4 Corner Screws */}
+      {/* 4 Corner Hardware Screws */}
       <div className="absolute top-3 left-3">
         <ScrewHead id="sos-screw-tl" rotation="default" />
       </div>
@@ -231,28 +136,9 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
           </span>
         </div>
 
-        {/* Siren Sound Toggle */}
-        <button
-          type="button"
-          onClick={() => {
-            soundManager.playClickTick();
-            setIsSoundMuted(!isSoundMuted);
-          }}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md neu-button text-[11px] font-mono text-[#4a5568] hover:text-[#2d3436]"
-          title="Toggle Siren Warning Audio"
-        >
-          {isSoundMuted ? (
-            <>
-              <VolumeX className="w-3.5 h-3.5 text-[#ff4757]" />
-              <span>SIREN MUTED</span>
-            </>
-          ) : (
-            <>
-              <Volume2 className="w-3.5 h-3.5 text-[#10b981]" />
-              <span>SIREN ON</span>
-            </>
-          )}
-        </button>
+        <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+          INSTANT 1-CLICK DISPATCH
+        </span>
       </div>
 
       {/* QUICK ISSUE SELECTION ADJACENT / ABOVE SOS */}
@@ -266,7 +152,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
             WHAT IS THE PROBLEM? (OPTIONAL)
           </label>
           <span className="text-[10px] font-mono text-[#4a5568]">
-            Will be broadcast to all responders
+            Sends directly to Command Center
           </span>
         </div>
 
@@ -274,10 +160,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
         <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
-            onClick={() => {
-              soundManager.playClickTick();
-              setSelectedIssue(selectedIssue === 'Medical Emergency' ? '' : 'Medical Emergency');
-            }}
+            onClick={() => setSelectedIssue(selectedIssue === 'Medical Emergency' ? '' : 'Medical Emergency')}
             className={`py-2 px-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               selectedIssue === 'Medical Emergency'
                 ? 'neu-pressed text-[#ff4757] font-semibold'
@@ -290,10 +173,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
 
           <button
             type="button"
-            onClick={() => {
-              soundManager.playClickTick();
-              setSelectedIssue(selectedIssue === 'Physical Threat / Ragging' ? '' : 'Physical Threat / Ragging');
-            }}
+            onClick={() => setSelectedIssue(selectedIssue === 'Physical Threat / Ragging' ? '' : 'Physical Threat / Ragging')}
             className={`py-2 px-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               selectedIssue === 'Physical Threat / Ragging'
                 ? 'neu-pressed text-[#ff4757] font-semibold'
@@ -306,10 +186,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
 
           <button
             type="button"
-            onClick={() => {
-              soundManager.playClickTick();
-              setSelectedIssue(selectedIssue === 'Accident on Campus Road' ? '' : 'Accident on Campus Road');
-            }}
+            onClick={() => setSelectedIssue(selectedIssue === 'Accident on Campus Road' ? '' : 'Accident on Campus Road')}
             className={`py-2 px-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               selectedIssue === 'Accident on Campus Road'
                 ? 'neu-pressed text-[#ff4757] font-semibold'
@@ -322,10 +199,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
 
           <button
             type="button"
-            onClick={() => {
-              soundManager.playClickTick();
-              setSelectedIssue(selectedIssue === 'Fire Hazard' ? '' : 'Fire Hazard');
-            }}
+            onClick={() => setSelectedIssue(selectedIssue === 'Fire Hazard' ? '' : 'Fire Hazard')}
             className={`py-2 px-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               selectedIssue === 'Fire Hazard'
                 ? 'neu-pressed text-[#ff4757] font-semibold'
@@ -338,10 +212,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
 
           <button
             type="button"
-            onClick={() => {
-              soundManager.playClickTick();
-              setSelectedIssue(selectedIssue === 'Suspicious Activity' ? '' : 'Suspicious Activity');
-            }}
+            onClick={() => setSelectedIssue(selectedIssue === 'Suspicious Activity' ? '' : 'Suspicious Activity')}
             className={`py-2 px-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               selectedIssue === 'Suspicious Activity'
                 ? 'neu-pressed text-[#ff4757] font-semibold'
@@ -354,10 +225,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
 
           <button
             type="button"
-            onClick={() => {
-              soundManager.playClickTick();
-              setSelectedIssue(selectedIssue === 'Facility / Hazard' ? '' : 'Facility / Hazard');
-            }}
+            onClick={() => setSelectedIssue(selectedIssue === 'Facility / Hazard' ? '' : 'Facility / Hazard')}
             className={`py-2 px-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               selectedIssue === 'Facility / Hazard'
                 ? 'neu-pressed text-[#ff4757] font-semibold'
@@ -407,10 +275,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
           <select
             id="fallback-location-select"
             value={fallbackLocation}
-            onChange={(e) => {
-              soundManager.playClickTick();
-              setFallbackLocation(e.target.value);
-            }}
+            onChange={(e) => setFallbackLocation(e.target.value)}
             className="w-full neu-recessed px-3 py-2 rounded-lg text-xs font-mono text-[#2d3436] outline-none cursor-pointer border border-[#babecc]/50"
           >
             {GCEK_CAMPUS_LOCATIONS.map((loc) => (
@@ -424,7 +289,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
         <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono text-[#4a5568]">
           <span className="flex items-center gap-1">
             <Radio className="w-3 h-3 text-[#10b981]" />
-            GPS Auto-Transmits on complete hold
+            Auto-GPS included with single click
           </span>
           {gpsState.status === 'locked' && gpsState.lat && (
             <span className="text-[#10b981] font-semibold">
@@ -434,106 +299,55 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
         </div>
       </div>
 
-      {/* CENTRAL HOLD SOS BUTTON WITH NEON CIRCULAR PROGRESS RING */}
-      <div className="flex flex-col items-center justify-center my-2 select-none">
+      {/* INSTANT 1-CLICK CENTRAL SOS BUTTON */}
+      <div className="flex flex-col items-center justify-center my-4 select-none">
         {/* Concentric Well Housing */}
-        <div className="relative p-3 rounded-full neu-recessed-deep flex items-center justify-center">
-          {/* Circular SVG Progress Ring */}
-          <svg
-            width={svgSize}
-            height={svgSize}
-            className="transform -rotate-90 pointer-events-none"
-            style={{ filter: 'drop-shadow(0 0 6px rgba(255, 71, 87, 0.45))' }}
+        <div className="relative p-4 rounded-full neu-recessed-deep flex items-center justify-center shadow-[inset_0_4px_12px_rgba(0,0,0,0.18)]">
+          {/* Central 1-Click Touch Dome Button */}
+          <button
+            id="btn-central-sos-click"
+            type="button"
+            disabled={isDispatching}
+            onClick={handleSingleClickSos}
+            className={`w-40 h-40 sm:w-44 sm:h-44 rounded-full neu-sos-button flex flex-col items-center justify-center cursor-pointer text-white select-none transition-transform active:scale-95 shadow-[0_8px_24px_rgba(255,71,87,0.5)] ${
+              isDispatching ? 'opacity-85 animate-pulse' : 'hover:scale-[1.02]'
+            }`}
+            aria-label="Click once to trigger instant SOS Emergency notification to Command Center"
           >
-            {/* Background Track */}
-            <circle
-              cx={svgSize / 2}
-              cy={svgSize / 2}
-              r={radius}
-              stroke="#babecc"
-              strokeWidth={strokeWidth}
-              fill="transparent"
-              strokeDasharray="4 6"
-              opacity="0.4"
-            />
-            {/* Animated Neon Progress Ring */}
-            <circle
-              cx={svgSize / 2}
-              cy={svgSize / 2}
-              r={radius}
-              stroke="#ff4757"
-              strokeWidth={strokeWidth}
-              fill="transparent"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              className="transition-all duration-75 ease-linear"
-            />
-          </svg>
-
-          {/* Central Touch Dome Button */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <button
-              id="btn-central-sos-hold"
-              type="button"
-              disabled={isDispatching}
-              onMouseDown={handleStartHold}
-              onMouseUp={handleCancelHold}
-              onMouseLeave={handleCancelHold}
-              onTouchStart={handleStartHold}
-              onTouchEnd={handleCancelHold}
-              onTouchCancel={handleCancelHold}
-              className={`w-36 h-36 rounded-full neu-sos-button flex flex-col items-center justify-center cursor-pointer text-white select-none ${
-                isHolding ? 'holding' : ''
-              } ${isDispatching ? 'opacity-80' : ''}`}
-              style={{
-                touchAction: 'none',
-              }}
-              aria-label="Hold for 3 seconds to trigger SOS Emergency"
-            >
-              <div className="p-1 rounded-full bg-white/20 mb-1 backdrop-blur-xs">
-                <AlertTriangle className="w-8 h-8 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
-              </div>
-              <span className="text-xl font-black tracking-widest uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-                {isDispatching
-                  ? 'SENDING'
-                  : isHolding
-                  ? `${remainingSeconds}s`
-                  : 'HOLD SOS'}
-              </span>
-              <span className="text-[10px] font-mono tracking-widest uppercase text-white/90 font-bold mt-0.5">
-                {isDispatching ? 'BROADCAST' : isHolding ? 'SIREN ACTIVE' : '3 SECONDS'}
-              </span>
-            </button>
-          </div>
+            <div className="p-1.5 rounded-full bg-white/20 mb-1.5 backdrop-blur-xs">
+              <ShieldAlert className="w-9 h-9 sm:w-10 sm:h-10 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
+            </div>
+            <span className="text-2xl sm:text-3xl font-black tracking-widest uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+              {isDispatching ? 'SENDING' : 'SOS'}
+            </span>
+            <span className="text-[11px] font-mono tracking-widest uppercase text-white/95 font-bold mt-1 bg-black/20 px-2.5 py-0.5 rounded-full">
+              {isDispatching ? 'TRANSMITTING' : 'CLICK ONCE'}
+            </span>
+          </button>
         </div>
 
         {/* Operational Status Text below button */}
         <div className="mt-4 text-center min-h-[44px] flex flex-col items-center justify-center">
-          {cancelledMessage ? (
-            <div className="px-3 py-1 rounded-lg neu-recessed text-xs font-mono font-bold text-[#ff4757] animate-bounce">
-              {cancelledMessage}
-            </div>
-          ) : isHolding ? (
-            <div className="px-3 py-1 rounded-lg neu-recessed text-xs font-mono font-bold text-[#d63031] flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#ff4757] animate-ping" />
-              SIREN SOUNDING • RELEASE CANCELS ({remainingSeconds}s)
+          {justDispatched ? (
+            <div className="px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-md animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-white" />
+              SOS DISPATCHED TO COMMAND CENTER
             </div>
           ) : isDispatching ? (
-            <div className="px-3 py-1 rounded-lg neu-recessed text-xs font-mono font-bold text-[#10b981] flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-ping" />
-              TRANSMITTING SOS BROADCAST...
+            <div className="px-3.5 py-1.5 rounded-xl neu-recessed text-xs font-mono font-bold text-[#10b981] flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] animate-ping" />
+              TRANSMITTING TO COMMAND CENTER...
             </div>
           ) : (
             <div className="text-xs font-mono text-[#4a5568] flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-[#10b981]" />
-              PRESS & HOLD FIRMLY FOR 3 SECONDS TO BROADCAST
+              SINGLE CLICK TRIGGERS SILENT SOS TO COMMAND CENTER
             </div>
           )}
 
           {/* Caller Identity Summary Tag */}
           <div className="mt-2.5 px-3 py-1 rounded-md bg-[#d1d9e6]/50 text-[10px] font-mono text-[#4a5568] flex items-center gap-1.5 max-w-full truncate">
-            <span className="text-[#8c96a8] uppercase">BROADCAST CALLER:</span>
+            <span className="text-[#8c96a8] uppercase">CALLER:</span>
             <span className="font-bold text-[#2d3436] truncate max-w-[120px]">{studentName}</span>
             {studentPhone ? (
               <span className="text-[#10b981] font-semibold flex items-center gap-0.5">
@@ -541,7 +355,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
                 {studentPhone}
               </span>
             ) : (
-              <span className="text-[#e67e22] font-semibold">(No phone registered - please add your mobile above)</span>
+              <span className="text-[#e67e22] font-semibold">(No phone registered - add mobile above)</span>
             )}
           </div>
         </div>

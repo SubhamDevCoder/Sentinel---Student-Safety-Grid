@@ -51,7 +51,7 @@ export interface EmergencyAlertPayload {
   status: 'PENDING' | 'ACKNOWLEDGED' | 'RESOLVED';
   studentPhone?: string;
   accuracyMeters?: number | null;
-  dispatchType?: 'SOS_HOLD' | 'MANUAL_DISPATCH' | 'QUICK_PRESET';
+  dispatchType?: 'ONE_CLICK_SOS' | 'SOS_HOLD' | 'MANUAL_DISPATCH' | 'QUICK_PRESET';
   category?: string;
   details?: string;
 }

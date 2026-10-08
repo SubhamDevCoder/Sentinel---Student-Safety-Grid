@@ -26,13 +26,11 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 }
 
 /**
- * Triggers a native system push notification and siren sound on the device
- * when any campus user broadcasts an emergency SOS.
+ * Triggers a native system push notification on the device
+ * when an emergency SOS alert is received.
+ * Operates completely silently without loud audio sirens.
  */
 export async function triggerCampusWideSosNotification(alert: SosAlertDocument): Promise<void> {
-  // Always trigger the acoustic siren and haptics regardless of whether browser banner is granted
-  soundManager.startEmergencyBroadcastSiren();
-
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return;
   }

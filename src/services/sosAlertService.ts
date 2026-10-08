@@ -428,3 +428,71 @@ export async function acknowledgeCampusSosAlert(
     handleFirestoreError(error, OperationType.UPDATE, `sos_alerts/${sosId}`);
   }
 }
+
+/**
+ * Real-time Security Command Center Subscription:
+ * Listens to all active SOS alerts in real-time.
+ * Delivers live distress signals directly to the Command Center.
+ */
+export function subscribeToCommandCenterAlerts(
+  onAlertsChange: (alerts: SosAlertDocument[]) => void,
+  onError?: (err: unknown) => void
+): () => void {
+  const alertsCol = collection(db, 'sos_alerts');
+  const q = query(
+    alertsCol,
+    where('status', 'in', ['ACTIVE', 'ACKNOWLEDGED', 'DISPATCHED']),
+    limit(25)
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const activeList: SosAlertDocument[] = [];
+      snapshot.forEach((docSnap) => {
+        activeList.push(docSnap.data() as SosAlertDocument);
+      });
+      // Sort: ACTIVE unacknowledged first, then newest
+      activeList.sort((a, b) => {
+        if (a.status === 'ACTIVE' && b.status !== 'ACTIVE') return -1;
+        if (b.status === 'ACTIVE' && a.status !== 'ACTIVE') return 1;
+        const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp || 0);
+        const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp || 0);
+        return timeB - timeA;
+      });
+      onAlertsChange(activeList);
+    },
+    (error) => {
+      console.warn('[Command Center Stream Error]:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+/**
+ * Command Center Security Action: Acknowledge, Dispatch, or Resolve an SOS Alert
+ */
+export async function updateCommandCenterAlertStatus(
+  sosId: string,
+  status: SosAlertStatus,
+  responderName: string = 'Security Command'
+): Promise<void> {
+  const docRef = doc(db, 'sos_alerts', sosId);
+  try {
+    const updatePayload: Record<string, any> = {
+      status,
+      last_updated: serverTimestamp(),
+    };
+    if (status === 'ACKNOWLEDGED' || status === 'DISPATCHED') {
+      updatePayload.acknowledged_by = responderName;
+      updatePayload.acknowledged_at = serverTimestamp();
+    } else if (status === 'RESOLVED') {
+      updatePayload.resolved_by = responderName;
+    }
+    await updateDoc(docRef, updatePayload);
+    console.log(`[Command Center] Alert ${sosId} updated to ${status}`);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `sos_alerts/${sosId}`);
+  }
+}
+
