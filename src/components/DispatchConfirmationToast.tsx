@@ -58,7 +58,7 @@ export const DispatchConfirmationToast: React.FC<DispatchConfirmationToastProps>
                 />
                 <h4 className="text-xs font-mono font-bold tracking-wide uppercase text-[#2d3436]">
                   {success
-                    ? 'EMERGENCY BROADCAST TRANSMITTED TO SECURITY COMMAND CENTER'
+                    ? 'EMERGENCY SOS BROADCAST TRANSMITTED ACROSS CAMPUS'
                     : 'OFFLINE / LOCAL TRANSMIT LOGGED'}
                 </h4>
               </div>

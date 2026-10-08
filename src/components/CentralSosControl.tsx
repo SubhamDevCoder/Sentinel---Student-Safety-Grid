@@ -522,7 +522,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
           ) : isDispatching ? (
             <div className="px-3 py-1 rounded-lg neu-recessed text-xs font-mono font-bold text-[#10b981] flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-[#10b981] animate-ping" />
-              TRANSMITTING TO SECURITY COMMAND...
+              TRANSMITTING SOS BROADCAST...
             </div>
           ) : (
             <div className="text-xs font-mono text-[#4a5568] flex items-center gap-1.5">

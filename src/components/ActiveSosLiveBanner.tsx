@@ -1,13 +1,10 @@
 import React, { useState } from 'react';
-import { SosAlertDocument, SosAlertStatus } from '../types.ts';
+import { SosAlertDocument } from '../types.ts';
 import {
-  AlertCircle,
   Radio,
   XCircle,
   Battery,
   ShieldCheck,
-  ChevronDown,
-  ChevronUp,
   MapPin,
   CheckCircle2,
   Phone,
@@ -17,17 +14,14 @@ import { soundManager } from '../utils/audio.ts';
 interface ActiveSosLiveBannerProps {
   activeAlert: SosAlertDocument | null;
   onCancelSos: (sosId: string) => Promise<void>;
-  onSimulateAdminStatus?: (sosId: string, status: SosAlertStatus) => Promise<void>;
   isCancelling: boolean;
 }
 
 export const ActiveSosLiveBanner: React.FC<ActiveSosLiveBannerProps> = ({
   activeAlert,
   onCancelSos,
-  onSimulateAdminStatus,
   isCancelling,
 }) => {
-  const [showSimControls, setShowSimControls] = useState<boolean>(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState<boolean>(false);
 
   if (!activeAlert) return null;
@@ -108,7 +102,7 @@ export const ActiveSosLiveBanner: React.FC<ActiveSosLiveBannerProps> = ({
               {status === 'DISPATCHED' ? 'RESCUE TEAM DISPATCHED!' : 'HELP IS ON THE WAY!'}
             </h4>
             <p className="text-[11px] text-white/90">
-              Campus Security Command has acknowledged your signal. Stay in place or move to a safe spot.
+              Campus responders have acknowledged your signal. Help is on the way! Stay in place or move to a safe spot.
             </p>
           </div>
         </div>
@@ -198,64 +192,7 @@ export const ActiveSosLiveBanner: React.FC<ActiveSosLiveBannerProps> = ({
             <span>CANCEL SOS BROADCAST</span>
           </button>
         )}
-
-        {/* Command Center Simulator Toggle */}
-        {onSimulateAdminStatus && (
-          <button
-            type="button"
-            onClick={() => setShowSimControls(!showSimControls)}
-            className="text-[11px] font-mono text-[#4a5568] hover:text-[#2d3436] flex items-center gap-1 cursor-pointer ml-auto"
-          >
-            <span>Admin Command Simulator</span>
-            {showSimControls ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        )}
       </div>
-
-      {/* Simulator Drawer for testing Firestore Status updates */}
-      {showSimControls && onSimulateAdminStatus && (
-        <div className="mt-3 p-3 rounded-xl neu-recessed text-xs font-mono border border-blue-400/40 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-blue-700 flex items-center gap-1">
-              <AlertCircle className="w-3.5 h-3.5" />
-              SIMULATE ADMIN COMMAND CENTER STATUS UPDATE:
-            </span>
-            <span className="text-[10px] text-[#4a5568]">Updates Firestore in real time</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                soundManager.playSuccessChime();
-                onSimulateAdminStatus(sos_id, 'ACKNOWLEDGED');
-              }}
-              className="py-1.5 px-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 cursor-pointer text-center"
-            >
-              1. Acknowledge
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                soundManager.playSuccessChime();
-                onSimulateAdminStatus(sos_id, 'DISPATCHED');
-              }}
-              className="py-1.5 px-2 rounded-lg bg-[#10b981] text-white font-bold hover:bg-emerald-800 cursor-pointer text-center"
-            >
-              2. Dispatch Responders
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                soundManager.playClickTick();
-                onSimulateAdminStatus(sos_id, 'RESOLVED');
-              }}
-              className="py-1.5 px-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 cursor-pointer text-center"
-            >
-              3. Mark Resolved
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

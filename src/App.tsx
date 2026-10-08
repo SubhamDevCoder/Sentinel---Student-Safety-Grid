@@ -7,7 +7,6 @@ import { HelplineDirectory } from './components/HelplineDirectory.tsx';
 import { DispatchConfirmationToast } from './components/DispatchConfirmationToast.tsx';
 import { DispatchHistoryDrawer } from './components/DispatchHistoryDrawer.tsx';
 import { ActiveSosLiveBanner } from './components/ActiveSosLiveBanner.tsx';
-import { AdminCommandCenterModal } from './components/AdminCommandCenterModal.tsx';
 import { useGPSLocation } from './hooks/useGPSLocation.ts';
 import { transmitEmergencyAlert, getLocalAlertHistory } from './services/dispatch.ts';
 import { testConnection } from './services/firebase.ts';
@@ -16,7 +15,6 @@ import {
   LiveLocationStreamer,
   subscribeToSosStatus,
   cancelSosAlert,
-  updateAlertStatusByAdmin,
   subscribeToCampusWideActiveSos,
   acknowledgeCampusSosAlert,
   getOrCreateUserId,
@@ -90,7 +88,6 @@ export default function App() {
   const [latestDispatchResult, setLatestDispatchResult] = useState<AlertDispatchResult | null>(null);
   const [alertHistory, setAlertHistory] = useState<AlertDispatchResult[]>([]);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState<boolean>(false);
-  const [isAdminCommandCenterOpen, setIsAdminCommandCenterOpen] = useState<boolean>(false);
   const [incomingCampusAlert, setIncomingCampusAlert] = useState<SosAlertDocument | null>(null);
   const [isOverlayMinimized, setIsOverlayMinimized] = useState<boolean>(false);
 
@@ -262,12 +259,12 @@ export default function App() {
         locationStreamerRef.current = streamer;
 
         // Feature 4: Real-time Status Listener
-        // Listens to document updates (e.g. ACKNOWLEDGED or DISPATCHED by admin/command center)
+        // Listens to document updates (e.g. ACKNOWLEDGED by campus responder)
         const unsubscribe = subscribeToSosStatus(
           createdAlert.sos_id,
           (liveDoc) => {
             setActiveAlert((prev) => {
-              // Trigger loud reassuring alert when Command Center acknowledges or dispatches
+              // Trigger loud reassuring alert when responder acknowledges
               if (
                 (liveDoc.status === 'ACKNOWLEDGED' || liveDoc.status === 'DISPATCHED') &&
                 prev?.status !== liveDoc.status
@@ -348,14 +345,6 @@ export default function App() {
     }
   }, []);
 
-  const handleSimulateAdminStatus = useCallback(async (sosId: string, status: SosAlertStatus) => {
-    try {
-      await updateAlertStatusByAdmin(sosId, status);
-    } catch (e) {
-      console.error('Simulation error:', e);
-    }
-  }, []);
-
   const handleAcknowledgeIncomingAlert = useCallback(
     async (sosId: string, responderName: string) => {
       try {
@@ -432,7 +421,6 @@ export default function App() {
         <ActiveSosLiveBanner
           activeAlert={activeAlert}
           onCancelSos={handleCancelSos}
-          onSimulateAdminStatus={handleSimulateAdminStatus}
           isCancelling={isCancelling}
         />
 
@@ -481,19 +469,6 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   soundManager.playClickTick();
-                  setIsAdminCommandCenterOpen(true);
-                }}
-                className="px-2.5 py-1 rounded-md neu-button text-[#ff4757] hover:bg-red-50 font-bold cursor-pointer flex items-center gap-1"
-                title="Open Security Command Center Dashboard"
-              >
-                <ShieldAlert className="w-3 h-3" />
-                COMMAND CENTER
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClickTick();
                   setIsHistoryDrawerOpen(true);
                 }}
                 className="px-2.5 py-1 rounded-md neu-button text-[#2d3436] hover:text-[#ff4757] font-semibold cursor-pointer flex items-center gap-1"
@@ -521,12 +496,6 @@ export default function App() {
         isOpen={isHistoryDrawerOpen}
         onClose={() => setIsHistoryDrawerOpen(false)}
         history={alertHistory}
-      />
-
-      {/* Admin Command Center Modal */}
-      <AdminCommandCenterModal
-        isOpen={isAdminCommandCenterOpen}
-        onClose={() => setIsAdminCommandCenterOpen(false)}
       />
     </main>
   );

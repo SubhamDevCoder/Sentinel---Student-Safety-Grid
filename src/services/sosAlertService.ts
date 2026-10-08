@@ -361,53 +361,6 @@ export async function cancelSosAlert(sosId: string): Promise<void> {
 }
 
 /**
- * Admin / Dispatch Status Progression Simulator & Controller
- * Enables Command Center to advance alert state to ACKNOWLEDGED, DISPATCHED, or RESOLVED
- */
-export async function updateAlertStatusByAdmin(
-  sosId: string,
-  status: SosAlertStatus
-): Promise<void> {
-  const docRef = doc(db, 'sos_alerts', sosId);
-
-  try {
-    await updateDoc(docRef, {
-      status,
-      last_updated: serverTimestamp(),
-    });
-    console.log(`[Command Center] Updated alert ${sosId} status to ${status}`);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `sos_alerts/${sosId}`);
-  }
-}
-
-/**
- * Subscribe to all recent SOS alerts for Admin Command Center Dashboard
- */
-export function subscribeToAllAlerts(
-  onAlertsChange: (alerts: SosAlertDocument[]) => void,
-  maxAlerts = 20
-): () => void {
-  const alertsCol = collection(db, 'sos_alerts');
-  const q = query(alertsCol, orderBy('timestamp', 'desc'), limit(maxAlerts));
-
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const alerts: SosAlertDocument[] = [];
-      snapshot.forEach((docSnap) => {
-        alerts.push(docSnap.data() as SosAlertDocument);
-      });
-      onAlertsChange(alerts);
-    },
-    (error) => {
-      console.error('[Admin Alerts Stream] Error:', error);
-      handleFirestoreError(error, OperationType.LIST, 'sos_alerts');
-    }
-  );
-}
-
-/**
  * Universal Campus-Wide SOS Broadcast Listener:
  * When ANYONE sends an SOS message, this listener triggers an instant alert notification
  * and sound to EVERYONE else who has this app open.
