@@ -22,9 +22,13 @@ export interface SosAlertDocument {
   device_info: SosDeviceInfo;
   issue?: string;
   campus_location?: string;
+  category?: string;
+  details?: string;
+  dispatch_type?: string;
   last_updated?: any;
   target_faculty_phones?: string[];
   acknowledged_by?: string;
+  acknowledged_at?: any;
   resolved_by?: string;
 }
 
@@ -47,7 +51,9 @@ export interface EmergencyAlertPayload {
   status: 'PENDING' | 'ACKNOWLEDGED' | 'RESOLVED';
   studentPhone?: string;
   accuracyMeters?: number | null;
-  dispatchType?: 'SOS_HOLD' | 'MANUAL_DISPATCH';
+  dispatchType?: 'SOS_HOLD' | 'MANUAL_DISPATCH' | 'QUICK_PRESET';
+  category?: string;
+  details?: string;
 }
 
 export interface ContactItem {

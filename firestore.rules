@@ -39,7 +39,10 @@ service cloud.firestore {
         data.location is map &&
         (!('phone_number' in data) || (data.phone_number is string && data.phone_number.size() <= 25)) &&
         (!('issue' in data) || (data.issue is string && data.issue.size() <= 300)) &&
-        (!('campus_location' in data) || (data.campus_location is string && data.campus_location.size() <= 300));
+        (!('campus_location' in data) || (data.campus_location is string && data.campus_location.size() <= 300)) &&
+        (!('category' in data) || (data.category is string && data.category.size() <= 100)) &&
+        (!('details' in data) || (data.details is string && data.details.size() <= 1000)) &&
+        (!('dispatch_type' in data) || (data.dispatch_type is string && data.dispatch_type.size() <= 50));
     }
 
     // Connection testing endpoint
@@ -83,7 +86,7 @@ service cloud.firestore {
           ) ||
           // Action 3: Status Progression (Acknowledge, Dispatch, Resolve by campus responders)
           (
-            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_updated', 'acknowledged_by', 'resolved_by']) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'last_updated', 'acknowledged_by', 'acknowledged_at', 'resolved_by']) &&
             incoming().status in ['ACKNOWLEDGED', 'DISPATCHED', 'RESOLVED']
           ) ||
           // Action 4: Admin full update override

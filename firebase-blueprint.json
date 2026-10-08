@@ -66,6 +66,31 @@
           "description": "Campus landmark or fallback description",
           "maxLength": 300
         },
+        "category": {
+          "type": "string",
+          "description": "Category of the emergency",
+          "maxLength": 100
+        },
+        "details": {
+          "type": "string",
+          "description": "Additional specific problem details or notes",
+          "maxLength": 1000
+        },
+        "dispatch_type": {
+          "type": "string",
+          "description": "Trigger mode e.g. SOS_HOLD, MANUAL_DISPATCH, QUICK_PRESET",
+          "maxLength": 50
+        },
+        "acknowledged_by": {
+          "type": "string",
+          "description": "Name or roll number of student/guard who acknowledged the alert",
+          "maxLength": 100
+        },
+        "acknowledged_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when alert was acknowledged"
+        },
         "last_updated": {
           "type": "string",
           "format": "date-time",

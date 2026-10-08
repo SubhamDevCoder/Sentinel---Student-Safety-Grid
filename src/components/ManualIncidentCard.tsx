@@ -72,6 +72,8 @@ export const ManualIncidentCard: React.FC<ManualIncidentCardProps> = ({
       studentPhone: trimmedPhone || studentPhone || undefined,
       location: trimmedLoc || (liveLat ? `GPS (${liveLat.toFixed(5)}, ${liveLng?.toFixed(5)})` : 'GCEK Campus'),
       issue: trimmedIssue || 'Manual Incident Report',
+      category: 'Manual Incident Report',
+      details: trimmedIssue,
       lat: liveLat,
       lng: liveLng,
       timestamp: Date.now(),

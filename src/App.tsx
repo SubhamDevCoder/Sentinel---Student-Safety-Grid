@@ -92,6 +92,7 @@ export default function App() {
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState<boolean>(false);
   const [isAdminCommandCenterOpen, setIsAdminCommandCenterOpen] = useState<boolean>(false);
   const [incomingCampusAlert, setIncomingCampusAlert] = useState<SosAlertDocument | null>(null);
+  const [isOverlayMinimized, setIsOverlayMinimized] = useState<boolean>(false);
 
   const currentUserId = useRef<string>(getOrCreateUserId()).current;
   const locationStreamerRef = useRef<LiveLocationStreamer | null>(null);
@@ -111,11 +112,15 @@ export default function App() {
         // Only notify if not this device's own outgoing active session
         if (newAlert.sos_id !== activeAlert?.sos_id) {
           setIncomingCampusAlert(newAlert);
-          triggerCampusWideSosNotification(newAlert);
+          if (newAlert.status === 'ACTIVE') {
+            setIsOverlayMinimized(false);
+            triggerCampusWideSosNotification(newAlert);
+          }
         }
       },
       () => {
         setIncomingCampusAlert(null);
+        setIsOverlayMinimized(false);
         soundManager.stopEmergencyBroadcastSiren();
       }
     );
@@ -225,6 +230,9 @@ export default function App() {
           },
           issue: payload.issue,
           campusLocation: payload.location,
+          category: payload.category,
+          details: payload.details,
+          dispatchType: payload.dispatchType,
         });
 
         setActiveAlert(createdAlert);
@@ -362,19 +370,48 @@ export default function App() {
 
   const handleDismissIncomingAlert = useCallback(() => {
     soundManager.stopEmergencyBroadcastSiren();
-    setIncomingCampusAlert(null);
+    setIsOverlayMinimized(true);
   }, []);
 
   return (
     <main className="min-h-screen bg-[#e0e5ec] chassis-texture text-[#2d3436] p-3 sm:p-5 md:p-8 flex flex-col justify-between relative">
       {/* Universal Campus-Wide Emergency SOS Notification Overlay */}
-      {incomingCampusAlert && (
+      {incomingCampusAlert && !isOverlayMinimized && (
         <IncomingEmergencySosOverlay
           alert={incomingCampusAlert}
           currentUserName={studentName}
           onAcknowledge={handleAcknowledgeIncomingAlert}
           onDismiss={handleDismissIncomingAlert}
         />
+      )}
+
+      {/* Sticky High-Priority Banner when Dossier is Minimized */}
+      {incomingCampusAlert && isOverlayMinimized && (
+        <div className="w-full max-w-md md:max-w-xl mx-auto mb-3 bg-red-600 text-white rounded-xl p-3 flex items-center justify-between shadow-lg animate-pulse font-mono text-xs border border-red-400">
+          <div className="flex items-center gap-2 truncate pr-2">
+            <ShieldAlert className="w-4 h-4 text-amber-300 shrink-0" />
+            <div className="truncate">
+              <span className="font-bold uppercase block sm:inline">
+                {incomingCampusAlert.status === 'ACKNOWLEDGED'
+                  ? 'RESPONDING TO SOS:'
+                  : 'ACTIVE SOS DISTRESS:'}
+              </span>{' '}
+              <span className="truncate">
+                {incomingCampusAlert.user_name} — {incomingCampusAlert.issue}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClickTick();
+              setIsOverlayMinimized(false);
+            }}
+            className="px-3 py-1.5 bg-white text-red-600 rounded-lg font-bold text-xs shrink-0 hover:bg-red-50 cursor-pointer shadow"
+          >
+            VIEW PROBLEM & INFO
+          </button>
+        </div>
       )}
 
       <div className="w-full max-w-md md:max-w-xl mx-auto">

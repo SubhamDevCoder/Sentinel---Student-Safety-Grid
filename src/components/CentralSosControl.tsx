@@ -122,13 +122,18 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
       resolvedLocation = `GPS (${liveLat.toFixed(5)}, ${liveLng?.toFixed(5)}) - near ${fallbackLocation}`;
     }
 
-    const finalIssue = customIssueText.trim() || selectedIssue || 'Instant SOS Triggered';
+    const resolvedCategory = selectedIssue || 'Instant SOS';
+    const finalIssue = customIssueText.trim()
+      ? (selectedIssue ? `${selectedIssue}: ${customIssueText.trim()}` : customIssueText.trim())
+      : (selectedIssue || 'Instant SOS Triggered');
 
     const payload: EmergencyAlertPayload = {
       studentName: studentName || 'GCEK Student',
       studentPhone: studentPhone ? studentPhone : undefined,
       location: resolvedLocation,
       issue: finalIssue,
+      category: resolvedCategory,
+      details: customIssueText.trim(),
       lat: liveLat,
       lng: liveLng,
       timestamp: Date.now(),
@@ -258,10 +263,10 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
             className="text-xs font-mono font-semibold tracking-wider text-[#4a5568] uppercase flex items-center gap-1.5"
           >
             <AlertTriangle className="w-3.5 h-3.5 text-[#ff4757]" />
-            SPECIFY ISSUE (OPTIONAL BEFORE SOS)
+            WHAT IS THE PROBLEM? (OPTIONAL)
           </label>
           <span className="text-[10px] font-mono text-[#4a5568]">
-            Defaults to &quot;Instant SOS Triggered&quot;
+            Will be broadcast to all responders
           </span>
         </div>
 
@@ -287,16 +292,32 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
             type="button"
             onClick={() => {
               soundManager.playClickTick();
-              setSelectedIssue(selectedIssue === 'Suspicious Activity' ? '' : 'Suspicious Activity');
+              setSelectedIssue(selectedIssue === 'Physical Threat / Ragging' ? '' : 'Physical Threat / Ragging');
             }}
             className={`py-2 px-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-              selectedIssue === 'Suspicious Activity'
+              selectedIssue === 'Physical Threat / Ragging'
                 ? 'neu-pressed text-[#ff4757] font-semibold'
                 : 'neu-button text-[#2d3436]'
             }`}
           >
             <UserX className="w-4 h-4 text-[#e17055]" />
-            <span className="truncate w-full text-center text-[11px]">Threat/Suspicious</span>
+            <span className="truncate w-full text-center text-[11px]">Threat/Ragging</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClickTick();
+              setSelectedIssue(selectedIssue === 'Accident on Campus Road' ? '' : 'Accident on Campus Road');
+            }}
+            className={`py-2 px-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              selectedIssue === 'Accident on Campus Road'
+                ? 'neu-pressed text-[#ff4757] font-semibold'
+                : 'neu-button text-[#2d3436]'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4 text-[#f39c12]" />
+            <span className="truncate w-full text-center text-[11px]">Road Accident</span>
           </button>
 
           <button
@@ -314,6 +335,38 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
             <Flame className="w-4 h-4 text-[#d63031]" />
             <span className="truncate w-full text-center text-[11px]">Fire Hazard</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClickTick();
+              setSelectedIssue(selectedIssue === 'Suspicious Activity' ? '' : 'Suspicious Activity');
+            }}
+            className={`py-2 px-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              selectedIssue === 'Suspicious Activity'
+                ? 'neu-pressed text-[#ff4757] font-semibold'
+                : 'neu-button text-[#2d3436]'
+            }`}
+          >
+            <User className="w-4 h-4 text-[#8e44ad]" />
+            <span className="truncate w-full text-center text-[11px]">Suspicious</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClickTick();
+              setSelectedIssue(selectedIssue === 'Facility / Hazard' ? '' : 'Facility / Hazard');
+            }}
+            className={`py-2 px-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              selectedIssue === 'Facility / Hazard'
+                ? 'neu-pressed text-[#ff4757] font-semibold'
+                : 'neu-button text-[#2d3436]'
+            }`}
+          >
+            <Radio className="w-4 h-4 text-[#2980b9]" />
+            <span className="truncate w-full text-center text-[11px]">Facility</span>
+          </button>
         </div>
 
         {/* Custom brief text override if student wants specific note */}
@@ -323,7 +376,7 @@ export const CentralSosControl: React.FC<CentralSosControlProps> = ({
             type="text"
             value={customIssueText}
             onChange={(e) => setCustomIssueText(e.target.value)}
-            placeholder="Or type brief note (e.g. Near Canteen, 2nd floor lab)..."
+            placeholder="Type specific problem (e.g. fallen from stairs, breathing trouble, lab 204)..."
             className="w-full neu-recessed px-3.5 py-2.5 rounded-xl text-xs font-mono text-[#2d3436] placeholder-[#8c96a8] outline-none border border-transparent focus:border-[#ff4757]/40"
           />
         </div>

@@ -75,6 +75,9 @@ export interface TriggerSosParams {
   location: SosAlertLocation;
   issue?: string;
   campusLocation?: string;
+  category?: string;
+  details?: string;
+  dispatchType?: string;
 }
 
 /**
@@ -86,6 +89,7 @@ export interface TriggerSosParams {
  * - status: "ACTIVE"
  * - location: { latitude, longitude, accuracy }
  * - device_info: { battery_level, is_charging } captured in real-time
+ * - issue, campus_location, category, details, dispatch_type
  */
 export async function triggerSosPayload(params: TriggerSosParams): Promise<SosAlertDocument> {
   const sosId = generateSosId();
@@ -117,6 +121,9 @@ export async function triggerSosPayload(params: TriggerSosParams): Promise<SosAl
     device_info: batteryInfo,
     issue: params.issue || 'Instant SOS Triggered',
     campus_location: params.campusLocation || 'Campus Quad',
+    category: params.category || 'Emergency',
+    details: params.details || '',
+    dispatch_type: params.dispatchType || 'SOS_HOLD',
     last_updated: serverTimestamp(),
   };
 
@@ -412,7 +419,7 @@ export function subscribeToCampusWideActiveSos(
   onError?: (err: unknown) => void
 ): () => void {
   const alertsCol = collection(db, 'sos_alerts');
-  const q = query(alertsCol, where('status', '==', 'ACTIVE'), limit(10));
+  const q = query(alertsCol, where('status', 'in', ['ACTIVE', 'ACKNOWLEDGED']), limit(10));
 
   return onSnapshot(
     q,
@@ -421,13 +428,21 @@ export function subscribeToCampusWideActiveSos(
       snapshot.forEach((docSnap) => {
         const data = docSnap.data() as SosAlertDocument;
         // Don't treat current device's own outgoing alert as an incoming broadcast
-        if (data.user_id !== currentUserId && data.status === 'ACTIVE') {
+        if (
+          data.user_id !== currentUserId &&
+          (data.status === 'ACTIVE' || data.status === 'ACKNOWLEDGED')
+        ) {
           incomingAlerts.push(data);
         }
       });
 
       if (incomingAlerts.length > 0) {
-        // Broadcast the most urgent/latest active incoming alert
+        // Prioritize ACTIVE first so any new unacknowledged distress takes precedence
+        incomingAlerts.sort((a, b) => {
+          if (a.status === 'ACTIVE' && b.status !== 'ACTIVE') return -1;
+          if (b.status === 'ACTIVE' && a.status !== 'ACTIVE') return 1;
+          return 0;
+        });
         onActiveAlert(incomingAlerts[0]);
       } else {
         onAllAlertsCleared();
@@ -452,6 +467,7 @@ export async function acknowledgeCampusSosAlert(
     await updateDoc(docRef, {
       status: 'ACKNOWLEDGED',
       acknowledged_by: responderName || 'Campus Responder',
+      acknowledged_at: serverTimestamp(),
       last_updated: serverTimestamp(),
     });
     console.log(`[SOS] Campus alert ${sosId} acknowledged by ${responderName}`);
